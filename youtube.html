@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Mock</title>
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --panel: #181818;
+      --soft: #212121;
+      --muted: #aaaaaa;
+      --text: #f1f1f1;
+      --line: #303030;
+      --primary: #ff0000;
+      --chip: #272727;
+      --hover: #3a3a3a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      height: 56px;
+      background: rgba(15, 15, 15, 0.96);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+
+    .left, .center, .right {
+      display: flex;
+      align-items: center;
+    }
+
+    .menu-btn, .icon-btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .menu-btn:hover, .icon-btn:hover {
+      background: var(--hover);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: 12px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .logo {
+      width: 28px;
+      height: 20px;
+      background: var(--primary);
+      border-radius: 6px;
+      position: relative;
+    }
+
+    .logo::before {
+      content: "";
+      position: absolute;
+      top: 5px;
+      left: 10px;
+      border-left: 8px solid white;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+    }
+
+    .brand small {
+      color: var(--muted);
+      font-size: 11px;
+      margin-left: 2px;
+      font-weight: 700;
+    }
+
+    .search-wrap {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+    }
+
+    .search-box {
+      width: min(700px, 100%);
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 999px;
+      overflow: hidden;
+      height: 40px;
+    }
+
+    .search-box input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      padding: 0 16px;
+      color: var(--text);
+      font-size: 16px;
+    }
+
+    .search-btn {
+      width: 64px;
+      height: 100%;
+      border: none;
+      border-left: 1px solid var(--line);
+      background: #222;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .mic-btn {
+      width: 40px;
+      height: 40px;
+      background: var(--soft);
+      border: none;
+      border-radius: 50%;
+      margin-left: 12px;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      display: grid;
+      place-items: center;
+      font-weight: bold;
+      margin-left: 12px;
+    }
+
+    .page {
+      display: flex;
+      min-height: calc(100vh - 56px);
+    }
+
+    .sidebar {
+      width: 240px;
+      padding: 12px 12px 20px;
+      border-right: 1px solid var(--line);
+      overflow: auto;
+    }
+
+    .nav-section {
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 12px;
+    }
+
+    .nav-title {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      padding: 8px 12px;
+      letter-spacing: 0.08em;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      color: var(--text);
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .nav-item:hover {
+      background: var(--hover);
+    }
+
+    .nav-item.active {
+      background: #272727;
+      font-weight: 600;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #fff;
+      display: inline-block;
+    }
+
+    .content {
+      flex: 1;
+      padding: 16px;
+    }
+
+    .chips {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .chip {
+      background: var(--chip);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: 0.2s ease;
+    }
+
+    .chip.active {
+      background: white;
+      color: black;
+    }
+
+    .chip:hover {
+      background: var(--hover);
+    }
+
+    .videos {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 20px;
+    }
+
+    .video-card {
+      cursor: pointer;
+    }
+
+    .thumb {
+      position: relative;
+      border-radius: 16px;
+      overflow: hidden;
+      height: 170px;
+      background: linear-gradient(135deg, #2d2d2d, #111);
+      display: flex;
+      align-items: end;
+      justify-content: flex-end;
+      padding: 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .duration {
+      background: rgba(0,0,0,0.8);
+      padding: 5px 7px;
+      border-radius: 6px;
+    }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      padding-top: 12px;
+    }
+
+    .channel-pic {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f97316, #ef4444);
+      display: grid;
+      place-items: center;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .video-title {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    .video-info {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        display: none;
+      }
+      .topbar {
+        padding: 0 10px;
+      }
+      .search-box {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .brand span { display: none; }
+      .search-wrap {
+        margin: 0 8px;
+      }
+      .search-box input {
+        font-size: 14px;
+      }
+      .videos {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="left">
+      <button class="menu-btn" aria-label="Menu">☰</button>
+      <div class="brand">
+        <div class="logo"></div>
+        <span>YouTube</span>
+        <small>CN</small>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <div class="search-box">
+        <input id="searchInput" type="text" placeholder="Search" />
+        <button class="search-btn" aria-label="Search">⌕</button>
+      </div>
+      <button class="mic-btn" aria-label="Mic">🎤</button>
+    </div>
+
+    <div class="right">
+      <button class="icon-btn" aria-label="Create">＋</button>
+      <button class="icon-btn" aria-label="Notifications">🔔</button>
+      <div class="avatar">A</div>
+    </div>
+  </header>
+
+  <div class="page">
+    <aside class="sidebar">
+      <div class="nav-section">
+        <div class="nav-item active"><span class="dot" style="background:#ff4d4d;"></span> Home</div>
+        <div class="nav-item"><span class="dot" style="background:#3b82f6;"></span> Shorts</div>
+        <div class="nav-item"><span class="dot" style="background:#10b981;"></span> Subscriptions</div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-title">You</div>
+        <div class="nav-item"><span class="dot" style="background:#f59e0b;"></span> History</div>
+        <div class="nav-item"><span class="dot" style="background:#a78bfa;"></span> Watch Later</div>
+        <div class="nav-item"><span class="dot" style="background:#f472b6;"></span> Liked Videos</div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-title">Subscriptions</div>
+        <div class="nav-item"><span class="dot" style="background:#f43f5e;"></span> TechZone</div>
+        <div class="nav-item"><span class="dot" style="background:#14b8a6;"></span> GameHub</div>
+        <div class="nav-item"><span class="dot" style="background:#eab308;"></span> TravelVlog</div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div class="chips">
+        <div class="chip active">All</div>
+        <div class="chip">Gaming</div>
+        <div class="chip">Music</div>
+        <div class="chip">Live</div>
+        <div class="chip">News</div>
+        <div class="chip">Technology</div>
+        <div class="chip">Movies</div>
+        <div class="chip">Sports</div>
+      </div>
+
+      <section id="videos" class="videos"></section>
+    </main>
+  </div>
+
+  <script>
+    const videos = [
+      {
+        title: "React JS Crash Course for Beginners",
+        channel: "CodeWithAri",
+        views: "1.2M views",
+        age: "2 days ago",
+        duration: "12:34",
+        color: "linear-gradient(135deg, #ff7a18, #af002d)"
+      },
+      {
+        title: "Top 10 Travel Destinations in 2026",
+        channel: "Wander Daily",
+        views: "760K views",
+        age: "1 week ago",
+        duration: "9:21",
+        color: "linear-gradient(135deg, #00c6ff, #0072ff)"
+      },
+      {
+        title: "Build a Modern Landing Page in HTML & CSS",
+        channel: "DesignPilot",
+        views: "945K views",
+        age: "3 days ago",
+        duration: "18:45",
+        color: "linear-gradient(135deg, #8e2de2, #4a00e0)"
+      },
+      {
+        title: "Best Gaming Highlights of the Week",
+        channel: "GameZone",
+        views: "2.4M views",
+        age: "5 hours ago",
+        duration: "15:10",
+        color: "linear-gradient(135deg, #1f4037, #99f2c8)"
+      },
+      {
+        title: "How AI Is Changing Everyday Life",
+        channel: "FutureTalk",
+        views: "430K views",
+        age: "4 days ago",
+        duration: "11:03",
+        color: "linear-gradient(135deg, #ff9966, #ff5e62)"
+      },
+      {
+        title: "Simple Workout Routine for Busy People",
+        channel: "FitFlow",
+        views: "680K views",
+        age: "6 days ago",
+        duration: "8:56",
+        color: "linear-gradient(135deg, #22c1c3, #fdbb2d)"
+      }
+    ];
+
+    const videosContainer = document.getElementById("videos");
+
+    function renderVideos(filter = "") {
+      const query = filter.trim().toLowerCase();
+
+      const filtered = videos.filter(video => {
+        return video.title.toLowerCase().includes(query) ||
+               video.channel.toLowerCase().includes(query);
+      });
+
+      videosContainer.innerHTML = filtered.map(video => `
+        <article class="video-card">
+          <div class="thumb" style="background:${video.color}">
+            <span class="duration">${video.duration}</span>
+          </div>
+          <div class="meta">
+            <div class="channel-pic">${video.channel.charAt(0).toUpperCase()}</div>
+            <div>
+              <h3 class="video-title">${video.title}</h3>
+              <div class="video-info">${video.channel}</div>
+              <div class="video-info">${video.views} • ${video.age}</div>
+            </div>
+          </div>
+        </article>
+      `).join("");
+
+      if (!filtered.length) {
+        videosContainer.innerHTML = `
+          <div style="grid-column: 1 / -1; color: #aaa; padding: 30px; text-align: center;">
+            No videos found.
+          </div>
+        `;
+      }
+    }
+
+    document.getElementById("searchInput").addEventListener("input", (e) => {
+      renderVideos(e.target.value);
+    });
+
+    renderVideos();
+  </script>
+</body>
+</html>
