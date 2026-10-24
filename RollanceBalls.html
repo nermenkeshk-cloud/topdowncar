@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rollance Balls</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #08131f;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #eaf8ff;
+      overflow: hidden;
+    }
+    body {
+      display: grid;
+      place-items: center;
+    }
+    #game {
+      width: min(94vw, 900px);
+      height: min(92vh, 920px);
+      display: block;
+      border-radius: 18px;
+      border: 3px solid rgba(125,211,252,0.35);
+      background: linear-gradient(180deg, #0a1828 0%, #101c2f 100%);
+      box-shadow: 0 30px 60px rgba(0,0,0,0.45);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="900" height="920"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    const keys = {};
+    window.addEventListener("keydown", e => {
+      keys[e.key.toLowerCase()] = true;
+      if (e.key === "r" || e.key === "R") resetLevel();
+    });
+    window.addEventListener("keyup", e => {
+      keys[e.key.toLowerCase()] = false;
+    });
+
+    const levels = [
+      {
+        name: "Warm Up",
+        start: { x: 110, y: 760 },
+        goal: { x: 760, y: 120, r: 28 },
+        walls: [
+          { x: 0, y: 0, w: 900, h: 30 },
+          { x: 0, y: 0, w: 30, h: 920 },
+          { x: 870, y: 0, w: 30, h: 920 },
+          { x: 0, y: 890, w: 900, h: 30 },
+
+          { x: 140, y: 640, w: 200, h: 18 },
+          { x: 370, y: 560, w: 18, h: 170 },
+          { x: 450, y: 560, w: 220, h: 18 },
+          { x: 630, y: 470, w: 18, h: 170 },
+          { x: 220, y: 430, w: 260, h: 18 },
+          { x: 220, y: 270, w: 18, h: 180 },
+          { x: 220, y: 270, w: 220, h: 18 },
+          { x: 440, y: 270, w: 18, h: 180 },
+          { x: 440, y: 180, w: 220, h: 18 }
+        ],
+        coins: [
+          { x: 245, y: 585, r: 12 },
+          { x: 585, y: 500, r: 12 },
+          { x: 500, y: 220, r: 12 },
+          { x: 680, y: 220, r: 12 }
+        ],
+        hazards: [
+          { x: 340, y: 120, r: 18 },
+          { x: 750, y: 725, r: 20 },
+          { x: 580, y: 340, r: 16 }
+        ]
+      },
+      {
+        name: "Drift",
+        start: { x: 100, y: 770 },
+        goal: { x: 790, y: 120, r: 28 },
+        walls: [
+          { x: 0, y: 0, w: 900, h: 30 },
+          { x: 0, y: 0, w: 30, h: 920 },
+          { x: 870, y: 0, w: 30, h: 920 },
+          { x: 0, y: 890, w: 900, h: 30 },
+
+          { x: 140, y: 660, w: 18, h: 180 },
+          { x: 140, y: 660, w: 220, h: 18 },
+          { x: 360, y: 560, w: 18, h: 180 },
+          { x: 360, y: 560, w: 180, h: 18 },
+          { x: 540, y: 470, w: 18, h: 180 },
+          { x: 540, y: 470, w: 200, h: 18 },
+          { x: 300, y: 360, w: 220, h: 18 },
+          { x: 300, y: 240, w: 18, h: 140 },
+          { x: 300, y: 240, w: 220, h: 18 },
+          { x: 520, y: 240, w: 18, h: 180 },
+          { x: 520, y: 150, w: 200, h: 18 }
+        ],
+        coins: [
+          { x: 245, y: 610, r: 12 },
+          { x: 470, y: 500, r: 12 },
+          { x: 660, y: 410, r: 12 },
+          { x: 440, y: 300, r: 12 },
+          { x: 650, y: 200, r: 12 }
+        ],
+        hazards: [
+          { x: 240, y: 520, r: 20 },
+          { x: 700, y: 670, r: 18 },
+          { x: 440, y: 160, r: 18 }
+        ]
+      },
+      {
+        name: "Final Arc",
+        start: { x: 110, y: 780 },
+        goal: { x: 770, y: 130, r: 30 },
+        walls: [
+          { x: 0, y: 0, w: 900, h: 30 },
+          { x: 0, y: 0, w: 30, h: 920 },
+          { x: 870, y: 0, w: 30, h: 920 },
+          { x: 0, y: 890, w: 900, h: 30 },
+
+          { x: 150, y: 680, w: 18, h: 180 },
+          { x: 150, y: 680, w: 220, h: 18 },
+          { x: 370, y: 590, w: 18, h: 180 },
+          { x: 370, y: 590, w: 200, h: 18 },
+          { x: 570, y: 500, w: 18, h: 180 },
+          { x: 570, y: 500, w: 180, h: 18 },
+          { x: 610, y: 360, w: 18, h: 160 },
+          { x: 200, y: 420, w: 240, h: 18 },
+          { x: 200, y: 260, w: 18, h: 180 },
+          { x: 200, y: 260, w: 240, h: 18 },
+          { x: 440, y: 260, w: 18, h: 150 },
+          { x: 440, y: 170, w: 220, h: 18 }
+        ],
+        coins: [
+          { x: 260, y: 620, r: 12 },
+          { x: 490, y: 650, r: 12 },
+          { x: 700, y: 440, r: 12 },
+          { x: 310, y: 320, r: 12 },
+          { x: 610, y: 220, r: 12 }
+        ],
+        hazards: [
+          { x: 260, y: 500, r: 18 },
+          { x: 730, y: 300, r: 19 },
+          { x: 470, y: 160, r: 18 }
+        ]
+      }
+    ];
+
+    const state = {
+      levelIndex: 0,
+      keys: {},
+      level: null,
+      won: false,
+      complete: false
+    };
+
+    const player = {
+      x: 0,
+      y: 0,
+      r: 36,
+      vx: 0,
+      vy: 0,
+      maxSpeed: 4.3,
+      accel: 0.4,
+      friction: 0.94
+    };
+
+    function setLevel(index) {
+      const levelRaw = levels[index];
+      state.levelIndex = index;
+      state.level = JSON.parse(JSON.stringify(levelRaw));
+      player.x = levelRaw.start.x;
+      player.y = levelRaw.start.y;
+      player.vx = 0;
+      player.vy = 0;
+      state.won = false;
+      state.complete = false;
+    }
+
+    function resetLevel() {
+      setLevel(state.levelIndex);
+    }
+
+    function nextLevel() {
+      if (state.levelIndex < levels.length - 1) setLevel(state.levelIndex + 1);
+      else setLevel(0);
+    }
+
+    function clamp(v, min, max) {
+      return Math.min(Math.max(v, min), max);
+    }
+
+    function circleRectCollision(c, rect) {
+      const closestX = clamp(c.x, rect.x, rect.x + rect.w);
+      const closestY = clamp(c.y, rect.y, rect.y + rect.h);
+      const dx = c.x - closestX;
+      const dy = c.y - closestY;
+      return dx * dx + dy * dy < c.r * c.r;
+    }
+
+    function resolveRectCollision(rect) {
+      const c = player;
+      if (!circleRectCollision(c, rect)) return;
+
+      const closestX = clamp(c.x, rect.x, rect.x + rect.w);
+      const closestY = clamp(c.y, rect.y, rect.y + rect.h);
+
+      const dx = c.x - closestX;
+      const dy = c.y - closestY;
+      const dist = Math.hypot(dx, dy) || 0.0001;
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const overlap = c.r - dist;
+
+      c.x += nx * overlap;
+      c.y += ny * overlap;
+
+      const dot = c.vx * nx + c.vy * ny;
+      if (dot < 0) {
+        c.vx -= 2 * dot * nx;
+        c.vy -= 2 * dot * ny;
+      }
+    }
+
+    function updatePlayer() {
+      const level = state.level;
+
+      let ax = 0;
+      let ay = 0;
+
+      if (state.keys["arrowleft"] || state.keys["a"]) ax -= 1;
+      if (state.keys["arrowright"] || state.keys["d"]) ax += 1;
+      if (state.keys["arrowup"] || state.keys["w"]) ay -= 1;
+      if (state.keys["arrowdown"] || state.keys["s"]) ay += 1;
+
+      if (ax !== 0 || ay !== 0) {
+        const len = Math.hypot(ax, ay);
+        ax /= len;
+        ay /= len;
+
+        player.vx += ax * player.accel;
+        player.vy += ay * player.accel;
+      }
+
+      const speed = Math.hypot(player.vx, player.vy);
+      if (speed > player.maxSpeed) {
+        const scale = player.maxSpeed / speed;
+        player.vx *= scale;
+        player.vy *= scale;
+      }
+
+      player.vx *= player.friction;
+      player.vy *= player.friction;
+
+      if (Math.abs(player.vx) < 0.02) player.vx = 0;
+      if (Math.abs(player.vy) < 0.02) player.vy = 0;
+
+      player.x += player.vx;
+      player.y += player.vy;
+
+      for (const wall of level.walls) {
+        resolveRectCollision(wall);
+      }
+
+      player.x = clamp(player.x, 30 + player.r, 870 - player.r);
+      player.y = clamp(player.y, 30 + player.r, 890 - player.r);
+
+      for (const hazard of level.hazards) {
+        const dx = player.x - hazard.x;
+        const dy = player.y - hazard.y;
+        if (dx * dx + dy * dy < (player.r + hazard.r) * (player.r + hazard.r)) {
+          resetLevel();
+          return;
+        }
+      }
+
+      for (let i = level.coins.length - 1; i >= 0; i--) {
+        const coin = level.coins[i];
+        const dx = player.x - coin.x;
+        const dy = player.y - coin.y;
+        if (dx * dx + dy * dy < (player.r + coin.r) * (player.r + coin.r)) {
+          level.coins.splice(i, 1);
+        }
+      }
+
+      const goal = level.goal;
+      const dx = player.x - goal.x;
+      const dy = player.y - goal.y;
+      if (level.coins.length === 0 && dx * dx + dy * dy < (player.r + goal.r) * (player.r + goal.r)) {
+        if (!state.won) {
+          state.won = true;
+          setTimeout(nextLevel, 700);
+        }
+      }
+    }
+
+    function drawBackground() {
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, "#0b1d31");
+      grad.addColorStop(0.4, "#0d243c");
+      grad.addColorStop(1, "#0d1d29");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.strokeStyle = "rgba(125,211,252,0.07)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 28) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+      for (let y = 0; y < H; y += 28) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawWalls() {
+      const level = state.level;
+      ctx.fillStyle = "#223857";
+      for (const w of level.walls) {
+        ctx.fillRect(w.x, w.y, w.w, w.h);
+        ctx.strokeStyle = "rgba(125,211,252,0.25)";
+        ctx.strokeRect(w.x + 0.5, w.y + 0.5, w.w - 1, w.h - 1);
+      }
+    }
+
+    function drawCoins() {
+      const level = state.level;
+      for (const coin of level.coins) {
+        ctx.beginPath();
+        ctx.arc(coin.x, coin.y, coin.r, 0, Math.PI * 2);
+        ctx.fillStyle = "#facc15";
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(coin.x, coin.y, coin.r * 0.35, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff7bf";
+        ctx.fill();
+      }
+    }
+
+    function drawHazards() {
+      const level = state.level;
+      for (const h of level.hazards) {
+        const t = performance.now() * 0.005;
+        const pulse = 1 + Math.sin(t + h.x * 0.2) * 0.12;
+
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r * pulse, 0, Math.PI * 2);
+        ctx.fillStyle = "#fb7185";
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r * 0.38, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffe4e6";
+        ctx.fill();
+      }
+    }
+
+    function drawGoal() {
+      const goal = state.level.goal;
+      const pulse = 12 + Math.sin(performance.now() * 0.01) * 8;
+
+      ctx.beginPath();
+      ctx.arc(goal.x, goal.y, goal.r + pulse, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(110,231,183,0.15)";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(goal.x, goal.y, goal.r, 0, Math.PI * 2);
+      ctx.fillStyle = "#6ee7b7";
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(goal.x, goal.y, goal.r * 0.45, 0, Math.PI * 2);
+      ctx.fillStyle = "#d1fae5";
+      ctx.fill();
+    }
+
+    function drawPlayer() {
+      const c = player;
+      const grad = ctx.createRadialGradient(c.x - 8, c.y - 10, 4, c.x, c.y, c.r + 18);
+      grad.addColorStop(0, "#ecfeff");
+      grad.addColorStop(0.2, "#7dd3fc");
+      grad.addColorStop(1, "#38bdf8");
+
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(c.x - 10, c.y - 10, c.r * 0.35, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fill();
+    }
+
+    function drawHUD() {
+      ctx.fillStyle = "rgba(17,24,39,0.7)";
+      ctx.fillRect(20, 20, 240, 52);
+      ctx.strokeStyle = "rgba(125,211,252,0.35)";
+      ctx.strokeRect(20, 20, 240, 52);
+
+      ctx.fillStyle = "#9bdcff";
+      ctx.font = "bold 14px Arial";
+      ctx.fillText("LEVEL", 34, 42);
+
+      ctx.fillStyle = "#ecfafd";
+      ctx.font = "bold 21px Arial";
+      ctx.fillText(`${state.levelIndex + 1} - ${state.level.name}`, 34, 62);
+
+      if (state.level.coins.length > 0) {
+        ctx.fillStyle = "#facc15";
+        ctx.fillText(`Coins: ${state.level.coins.length}`, 690, 60);
+      } else {
+        ctx.fillStyle = "#6ee7b7";
+        ctx.fillText("GOAL REACHED", 670, 60);
+      }
+    }
+
+    function render() {
+      drawBackground();
+      drawWalls();
+      drawHazards();
+      drawCoins();
+      drawGoal();
+      drawHUD();
+      drawPlayer();
+    }
+
+    function loop() {
+      updatePlayer();
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    setLevel(0);
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
