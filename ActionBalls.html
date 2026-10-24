@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Action Balls</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0b1220;
+      font-family: Arial, sans-serif;
+      color: #eaf8ff;
+      overflow: hidden;
+    }
+    body {
+      display: grid;
+      place-items: center;
+    }
+    #game {
+      width: min(94vw, 820px);
+      height: min(92vh, 820px);
+      display: block;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #0f1b2d 0%, #0e2337 100%);
+      box-shadow: 0 30px 60px rgba(0,0,0,0.45);
+      border: 3px solid rgba(125,211,252,0.35);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="820" height="820"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
+
+    const keys = {};
+    window.addEventListener("keydown", e => {
+      keys[e.key.toLowerCase()] = true;
+    });
+    window.addEventListener("keyup", e => {
+      keys[e.key.toLowerCase()] = false;
+    });
+
+    const game = {
+      level: 0,
+      won: false,
+      over: false,
+      message: ""
+    };
+
+    const levels = [
+      {
+        name: "Bridge Start",
+        player: { x: 100, y: 680, r: 42 },
+        goal: { x: 690, y: 120, r: 34 },
+        walls: [
+          { x: 0, y: 0, w: 820, h: 30 },
+          { x: 0, y: 0, w: 30, h: 820 },
+          { x: 790, y: 0, w: 30, h: 820 },
+          { x: 0, y: 790, w: 820, h: 30 },
+
+          { x: 120, y: 540, w: 180, h: 22 },
+          { x: 340, y: 470, w: 20, h: 180 },
+          { x: 420, y: 610, w: 200, h: 22 },
+          { x: 600, y: 520, w: 20, h: 160 },
+          { x: 500, y: 300, w: 180, h: 22 },
+          { x: 260, y: 240, w: 22, h: 190 },
+          { x: 180, y: 150, w: 200, h: 22 }
+        ],
+        coins: [
+          { x: 210, y: 650, r: 12 },
+          { x: 520, y: 660, r: 12 },
+          { x: 600, y: 250, r: 12 },
+          { x: 280, y: 120, r: 12 }
+        ],
+        hazards: [
+          { x: 420, y: 130, r: 22, dx: 0, dy: 0, type: "orb" },
+          { x: 650, y: 630, r: 20, dx: 0, dy: 0, type: "orb" },
+          { x: 160, y: 360, r: 20, dx: 0, dy: 0, type: "orb" }
+        ]
+      },
+      {
+        name: "Twist Route",
+        player: { x: 90, y: 710, r: 42 },
+        goal: { x: 700, y: 130, r: 34 },
+        walls: [
+          { x: 0, y: 0, w: 820, h: 30 },
+          { x: 0, y: 0, w: 30, h: 820 },
+          { x: 790, y: 0, w: 30, h: 820 },
+          { x: 0, y: 790, w: 820, h: 30 },
+
+          { x: 150, y: 600, w: 18, h: 160 },
+          { x: 150, y: 600, w: 220, h: 18 },
+          { x: 360, y: 520, w: 18, h: 170 },
+          { x: 360, y: 520, w: 180, h: 18 },
+          { x: 520, y: 520, w: 18, h: 200 },
+          { x: 520, y: 520, w: 160, h: 18 },
+          { x: 680, y: 420, w: 18, h: 150 },
+          { x: 200, y: 400, w: 220, h: 18 },
+          { x: 200, y: 240, w: 18, h: 170 },
+          { x: 200, y: 240, w: 200, h: 18 },
+          { x: 400, y: 240, w: 18, h: 180 },
+          { x: 400, y: 150, w: 220, h: 18 }
+        ],
+        coins: [
+          { x: 250, y: 650, r: 12 },
+          { x: 520, y: 690, r: 12 },
+          { x: 735, y: 500, r: 12 },
+          { x: 290, y: 300, r: 12 },
+          { x: 515, y: 180, r: 12 }
+        ],
+        hazards: [
+          { x: 425, y: 640, r: 18, dx: 0, dy: 0, type: "orb" },
+          { x: 650, y: 300, r: 18, dx: 0, dy: 0, type: "orb" },
+          { x: 300, y: 170, r: 22, dx: 0, dy: 0, type: "orb" }
+        ]
+      },
+      {
+        name: "Final Drift",
+        player: { x: 90, y: 690, r: 42 },
+        goal: { x: 720, y: 120, r: 34 },
+        walls: [
+          { x: 0, y: 0, w: 820, h: 30 },
+          { x: 0, y: 0, w: 30, h: 820 },
+          { x: 790, y: 0, w: 30, h: 820 },
+          { x: 0, y: 790, w: 820, h: 30 },
+
+          { x: 120, y: 540, w: 200, h: 18 },
+          { x: 330, y: 540, w: 18, h: 160 },
+          { x: 330, y: 660, w: 180, h: 18 },
+          { x: 500, y: 520, w: 18, h: 180 },
+          { x: 500, y: 520, w: 180, h: 18 },
+          { x: 680, y: 420, w: 18, h: 180 },
+          { x: 180, y: 420, w: 220, h: 18 },
+          { x: 180, y: 260, w: 18, h: 160 },
+          { x: 180, y: 260, w: 220, h: 18 },
+          { x: 400, y: 260, w: 18, h: 180 },
+          { x: 400, y: 180, w: 200, h: 18 }
+        ],
+        coins: [
+          { x: 210, y: 650, r: 12 },
+          { x: 580, y: 670, r: 12 },
+          { x: 715, y: 470, r: 12 },
+          { x: 300, y: 330, r: 12 },
+          { x: 540, y: 180, r: 12 }
+        ],
+        hazards: [
+          { x: 420, y: 700, r: 18, dx: 0, dy: 0, type: "orb" },
+          { x: 610, y: 330, r: 20, dx: 0, dy: 0, type: "orb" },
+          { x: 280, y: 200, r: 18, dx: 0, dy: 0, type: "orb" }
+        ]
+      }
+    ];
+
+    let levelData = null;
+    let player = { x: 0, y: 0, r: 42, vx: 0, vy: 0 };
+    let particles = [];
+
+    function setLevel(index) {
+      const raw = levels[index];
+      levelData = JSON.parse(JSON.stringify(raw));
+      player.x = raw.player.x;
+      player.y = raw.player.y;
+      player.r = raw.player.r;
+
+      player.vx = 0;
+      player.vy = 0;
+
+      game.level = index;
+      game.won = false;
+      game.over = false;
+      game.message = "";
+    }
+
+    function resetLevel() {
+      setLevel(game.level);
+    }
+
+    function nextLevel() {
+      if (game.level < levels.length - 1) {
+        setLevel(game.level + 1);
+      } else {
+        setLevel(0);
+      }
+    }
+
+    function clamp(v, min, max) {
+      return Math.min(Math.max(v, min), max);
+    }
+
+    function circleRectCollision(c, rect) {
+      const closestX = clamp(c.x, rect.x, rect.x + rect.w);
+      const closestY = clamp(c.y, rect.y, rect.y + rect.h);
+      const dx = c.x - closestX;
+      const dy = c.y - closestY;
+      return dx * dx + dy * dy < c.r * c.r;
+    }
+
+    function resolveWall(rect) {
+      const c = player;
+
+      if (!circleRectCollision(c, rect)) return;
+
+      const closestX = clamp(c.x, rect.x, rect.x + rect.w);
+      const closestY = clamp(c.y, rect.y, rect.y + rect.h);
+
+      const dx = c.x - closestX;
+      const dy = c.y - closestY;
+      const dist = Math.hypot(dx, dy) || 0.0001;
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+      const overlap = c.r - dist;
+
+      c.x += nx * overlap;
+      c.y += ny * overlap;
+
+      const dot = c.vx * nx + c.vy * ny;
+      if (dot < 0) {
+        c.vx -= 2 * dot * nx;
+        c.vy -= 2 * dot * ny;
+      }
+    }
+
+    function addBurst(x, y, color) {
+      for (let i = 0; i < 12; i++) {
+        particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) *
