@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Geometry Dash Style</title>
+  <style>
+    :root {
+      --bg1: #0b1020;
+      --bg2: #111827;
+      --sky1: #22d3ee;
+      --sky2: #8b5cf6;
+      --ground: #0f172a;
+      --cube: #facc15;
+      --cube2: #f59e0b;
+      --danger: #f43f5e;
+      --danger2: #ef4444;
+      --ui: #e5e7eb;
+      --panel: rgba(15, 23, 42, 0.72);
+      --shadow: rgba(0,0,0,0.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: radial-gradient(circle at top, #1f2937, #020617 50%);
+      font-family: Arial, Helvetica, sans-serif;
+      overflow: hidden;
+      color: white;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    #gameWrap {
+      position: relative;
+      width: min(92vw, 960px);
+      aspect-ratio: 16 / 9;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+      border: 3px solid rgba(255,255,255,0.12);
+      background: linear-gradient(180deg, var(--sky1), var(--sky2));
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      image-rendering: auto;
+    }
+
+    .hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .score {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      background: rgba(15, 23, 42, 0.5);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+
+    .score small {
+      display: block;
+      opacity: 0.8;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      margin-bottom: 4px;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background: rgba(2,6,23,0.18);
+      backdrop-filter: blur(2px);
+    }
+
+    .screen.hidden {
+      display: none;
+    }
+
+    .panel {
+      background: rgba(15, 23, 42, 0.78);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 18px;
+      padding: 28px 26px 22px;
+      box-shadow: 0 25px 40px rgba(0,0,0,0.25);
+      min-width: min(72vw, 360px);
+    }
+
+    .title {
+      font-size: clamp(2rem, 4vw, 3.1rem);
+      font-weight: 900;
+      margin: 0 0 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #f8fafc;
+      text-shadow: 0 10px 16px rgba(0,0,0,0.3);
+    }
+
+    .subtitle {
+      color: rgba(255, 255, 255, 0.8);
+      margin: 0 0 18px;
+      font-size: 0.98rem;
+    }
+
+    .button {
+      pointer-events: auto;
+      border: 0;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #facc15, #f59e0b);
+      color: #111827;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 14px 22px;
+      cursor: pointer;
+      box-shadow: 0 12px 22px rgba(245,158,11,0.35);
+    }
+
+    .button:active { transform: translateY(1px) scale(0.99); }
+
+    .best {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.8);
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameWrap">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+    <div class="hud">
+      <div class="score">
+        <small>SCORE</small>
+        <span id="scoreText">0</span>
+      </div>
+    </div>
+
+    <div id="startScreen" class="screen">
+      <div class="panel">
+        <h1 class="title">Geometry</h1>
+        <p class="subtitle">Press Space / Click / Tap to jump</p>
+        <button id="startButton" class="button">Start</button>
+        <div id="bestText" class="best">Best: 0</div>
+      </div>
+    </div>
+
+    <div id="gameOverScreen" class="screen hidden">
+      <div class="panel">
+        <h2 class="title" style="font-size: clamp(1.8rem,3vw,2.6rem);">Game Over</h2>
+        <p class="subtitle" id="finalScore">Score: 0</p>
+        <button id="restartButton" class="button">Retry</button>
+        <div id="bestText2" class="best">Best: 0</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const scoreText = document.getElementById("scoreText");
+    const startScreen = document.getElementById("startScreen");
+    const gameOverScreen = document.getElementById("gameOverScreen");
+    const startButton = document.getElementById("startButton");
+    const restartButton = document.getElementById("restartButton");
+    const bestText = document.getElementById("bestText");
+    const bestText2 = document.getElementById("bestText2");
+    const finalScore = document.getElementById("finalScore");
+
+    const WORLD = {
+      width: canvas.width,
+      height: canvas.height,
+      floorY: canvas.height - 72
+    };
+
+    let state = "ready";
+    let score = 0;
+    let best = Number(localStorage.getItem("gd-best") || 0);
+
+    const player = {
+      x: 120,
+      y: WORLD.floorY - 34,
+      w: 26,
+      h: 26,
+      vy: 0,
+      gravity: 0.72,
+      jumpForce: -15,
+      grounded: true
+    };
+
+    let obstacles = [];
+    let particles = [];
+    let animationFrame = 0;
+    let lastTime = 0;
+    let spawnTimer = 0;
+    let speed = 6;
+
+    function resetPlayer() {
+      player.y = WORLD.floorY - player.h;
+      player.vy = 0;
+      player.grounded = true;
+    }
+
+    function startGame() {
+      state = "playing";
+      score = 0;
+      scoreText.textContent = "0";
+      obstacles = [];
+      particles = [];
+      spawnTimer = 60;
+      speed = 6;
+      resetPlayer();
+      startScreen.classList.add("hidden");
+      gameOverScreen.classList.add("hidden");
+    }
+
+    function gameOver() {
+      state = "gameover";
+      best = Math.max(best, Math.floor(score));
+      localStorage.setItem("gd-best", String(best));
+      bestText.textContent = "Best: " + best;
+      bestText2.textContent = "Best: " + best;
+      finalScore.textContent = "Score: " + Math.floor(score);
+      gameOverScreen.classList.remove("hidden");
+    }
+
+    function jump() {
+      if (state === "ready") {
+        startGame();
+        return;
+      }
+      if (state === "gameover") {
+        startGame();
+        return;
+      }
+      if (player.grounded) {
+        player.vy = player.jumpForce;
+        player.grounded = false;
+        burstParticles(player.x + player.w / 2, player.y + player.h, "#facc15", 10);
+      }
+    }
+
+    function burstParticles(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 4,
+          vy: -Math.random() * 3.5 - 1,
+          life: 26 + Math.random() * 18,
+          color,
+          size: 3 + Math.random() * 5
+        });
+      }
+    }
+
+    function randomBetween(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function spawnObstacle() {
+      const typeRoll = Math.random();
+      const w = 26 + Math.random() * 22;
+      const h = 40 + Math.random() * 55;
+
+      if (typeRoll < 0.7) {
+        obstacles.push({
+          type: "spike",
+          x: WORLD.width + 30,
+          y: WORLD.floorY - h,
+          w,
+          h,
+          color: "#f43f5e"
+        });
+      } else {
+        obstacles.push({
+          type: "block",
+          x: WORLD.width + 30,
+          y: WORLD.floorY - h,
+          w: 32 + Math.random() * 28,
+          h: h * 0.8,
+          color: "#f59e0b"
+        });
+      }
+    }
+
+    function updateParticles() {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 1;
+        p.vy += 0.15;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+    }
+
+    function updatePlayer(dt) {
+      player.vy += player.gravity * dt;
+      player.y += player.vy * dt;
+
+      if (player.y + player.h >= WORLD.floorY) {
+        player.y = WORLD.floorY - player.h;
+        player.vy = 0;
+        player.grounded = true;
+      }
+    }
+
+    function updateObstacles(dt) {
+      spawnTimer -= dt;
+      if (spawnTimer <= 0) {
+        spawnObstacle();
+        spawnTimer = randomBetween(54, 95);
+      }
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obs = obstacles[i];
+        obs.x -= (speed * dt);
+
+        if (obs.x + obs.w < 0) {
+          obstacles.splice(i, 1);
+        }
+      }
+    }
+
+    function intersects(a, b) {
+      const ax1 = a.x;
+      const ay1 = a.y;
+      const ax2 = a.x + a.w;
+      const ay2 = a.y + a.h;
+
+      const bx1 = b.x;
+      const by1 = b.y;
+      const bx2 = b.x + b.w;
+      const by2 = b.y + b.h;
+
+      return !(ax2 < bx1 || ax1 > bx2 || ay2 < by1 || ay1 > by2);
+    }
+
+    function checkCollisions() {
+      const playerBox = {
+        x: player.x,
+        y: player.y,
+        w: player.w,
+        h: player.h
+      };
+
+      for (const obs of obstacles) {
+        const box = {
+          x: obs.x,
+          y: obs.y,
+          w: obs.w,
+          h: obs.h
+        };
+
+        if (intersects(playerBox, box)) {
+          gameOver();
+          return;
+        }
+      }
+    }
+
+    function updateGame(dt) {
+      if (state !== "playing") return;
+
+      speed += 0.003 * dt;
+      score += dt * 0.12;
+      scoreText.textContent = Math.floor(score);
+
+      updatePlayer(dt);
+      updateObstacles(dt);
+      updateParticles();
+      checkCollisions();
+    }
+
+    function drawBackground() {
+      const g = ctx.createLinearGradient(0, 0, 0, WORLD.height);
+      g.addColorStop(0, "#22d3ee");
+      g.addColorStop(1, "#8b5cf6");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+
+      const gridOpacity = 0.14;
+      ctx.strokeStyle = `rgba(255,255,255,${gridOpacity})`;
+      ctx.lineWidth = 1;
+
+      for (let x = 0; x < WORLD.width; x += 32) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, WORLD.height);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y < WORLD.height; y += 32) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(WORLD.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawGround() {
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(0, WORLD.floorY, WORLD.width, WORLD.height - WORLD.floorY);
+
+      // ground highlight
+      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      ctx.fillRect(0, WORLD.floorY, WORLD.width, 6);
+
+      // decorative blocks
+      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      for (let x = 0; x < WORLD.width + 50; x += 40) {
+        ctx.fillRect(x + ((score * 4) % 40), WORLD.floorY + 18, 20, 12);
+      }
+    }
+
+    function drawPlayer() {
+      const px = player.x;
+      const py = player.y;
+      const glow = ctx.createRadialGradient(
+        px + player.w/2, py + player.h/2, 5,
+        px + player.w/2, py + player.h/2, 32
+      );
+      glow.addColorStop(0, "rgba(255,255,255,0.7)");
+      glow.addColorStop(1, "rgba(250,204,21,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(px - 8, py - 8, player.w + 16, player.h + 16);
+
+      ctx.fillStyle = "#facc15";
+      ctx.fillRect(px, py, player.w, player.h);
+
+      ctx.fillStyle = "#f59e0b";
+      ctx.fillRect(px + 5, py + 5, player.w - 10, player.h - 10);
+
+      ctx.fillStyle = "#fff7c2";
+      ctx.fillRect(px + 7, py + 7, 5, 5);
+      ctx.fillRect(px + 14, py + 7, 5, 5);
+    }
+
+    function drawSpike(obs) {
+      const x = obs.x;
+      const y = obs.y;
+      const w = obs.w;
+      const h = obs.h;
+
+      ctx.fillStyle = obs.color;
+      ctx.beginPath();
+      ctx.moveTo(x, y + h);
+      ctx.lineTo(x + w / 2, y);
+      ctx.lineTo(x + w, y + h);
+      ctx.closePath();
+      ctx.fill();
+
+      // inner highlight
+      ctx.fillStyle = "rgba(255,255,255,0.25)";
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.28, y + h * 0.8);
+      ctx.lineTo(x + w / 2, y + h * 0.18);
+      ctx.lineTo(x + w * 0.7, y + h * 0.8);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawBlock(obs) {
+      const x = obs.x;
+      const y = obs.y;
+      const w = obs.w;
+      const h = obs.h;
+
+      ctx.fillStyle = obs.color;
+      ctx.fillRect(x, y, w, h);
+
+      ctx.fillStyle = "rgba(255,255,255,0.2)";
+      ctx.fillRect(x + 4, y + 4, w - 8, 6);
+    }
+
+    function drawObstacles() {
+      for (const obs of obstacles) {
+        if (obs.type === "spike") drawSpike(obs);
+        else drawBlock(obs);
+      }
+    }
+
+    function drawParticles() {
+      for (const p of particles) {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, p.life / 40);
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function render() {
+      drawBackground();
+      drawGround();
+      drawObstacles();
+      drawParticles();
+      drawPlayer();
+    }
+
+    function loop(ts) {
+      const dt = Math.min((ts - lastTime) / 16.67 || 1, 2.2);
+      lastTime = ts;
+      updateGame(dt);
+      render();
+      animationFrame = requestAnimationFrame(loop);
+    }
+
+    function handlePointer(event) {
+      event.preventDefault();
+      jump();
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.code === "Space" || event.code === "ArrowUp" || event.code === "KeyW") {
+        event.preventDefault();
+        jump();
+      }
+    });
+
+    startButton.addEventListener("click", startGame);
+    restartButton.addEventListener("click", startGame);
+    canvas.addEventListener("pointerdown", handlePointer);
+    window.addEventListener("pointerdown", (e) => {
+      if (e.target === document.body || e.target === document.documentElement) {
+        jump();
+      }
+    });
+
+    bestText.textContent = "Best: " + best;
+    bestText2.textContent = "Best: " + best;
+    startScreen.classList.remove("hidden");
+    resetPlayer();
+    render();
+    animationFrame = requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
