@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ragdoll Break Destroy</title>
+  <style>
+    :root {
+      --bg1: #09111b;
+      --bg2: #1b2d47;
+      --ground: #1a3319;
+      --panel: rgba(11, 18, 30, 0.72);
+      --text: #edf7ff;
+      --line: rgba(255,255,255,0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at top, #1e3357, var(--bg1) 52%, #040810 100%);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: crosshair;
+      background:
+        linear-gradient(rgba(255,255,255,0.02), rgba(255,255,255,0)),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        radial-gradient(circle at center, #213d66, #0b1325 62%, #050a12 100%);
+      background-size: auto, 28px 28px, 28px 28px, 100% 100%;
+    }
+
+    .hud {
+      position: fixed;
+      left: 18px;
+      top: 18px;
+      z-index: 10;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.25);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-size: 12px;
+      pointer-events: none;
+      user-select: none;
+      backdrop-filter: blur(3px);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div class="hud">Click to break • Space = big blast</div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    let w = 0, h = 0, lastTime = 0;
+    const cars = [];
+    const sparks = [];
+    const smoke = [];
+
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+    function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
+
+    function resize() {
+      const ratio = window.devicePixelRatio || 1;
+      w = window.innerWidth;
+      h = window.innerHeight;
+
+      canvas.width = Math.floor(w * ratio);
+      canvas.height = Math.floor(h * ratio);
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function makeCar(x, y) {
+      const body = { x, y, vx: 0, vy: 0, r: 22, color: "#ff7a59" };
+      const wheelL = { x: x - 36, y: y + 28, vx: 0, vy: 0, r: 12, color: "#1d2433" };
+      const wheelR = { x: x + 36, y: y + 28, vx: 0, vy: 0, r: 12, color: "#1d2433" };
+      const armL = { x: x - 30, y: y - 14, vx: 0, vy: 0, r: 8, color: "#ffd166" };
+      const armR = { x: x + 30, y: y - 14, vx: 0, vy: 0, r: 8, color: "#ffd166" };
+      const legL = { x: x - 14, y: y + 52, vx: 0, vy: 0, r: 8, color: "#7fe7b0" };
+      const legR = { x: x + 14, y: y + 52, vx: 0, vy: 0, r: 8, color: "#7fe7b0" };
+
+      const pieces = [body, wheelL, wheelR, armL, armR, legL, legR];
+
+      const constraints = [
+        { a: body, b: wheelL, len: 42, stiff: 0.085 },
+        { a: body, b: wheelR, len: 42, stiff: 0.085 },
+        { a: body, b: armL, len: 30, stiff: 0.09 },
+        { a: body, b: armR, len: 30, stiff: 0.09 },
+        { a: body, b: legL, len: 42, stiff: 0.09 },
+        { a: body, b: legR, len: 42, stiff: 0.09 },
+        { a: armL, b: legL, len: 50, stiff: 0.08 },
+        { a: armR, b: legR, len: 50, stiff: 0.08 },
+        { a: armL, b: armR, len: 60, stiff: 0.07 },
+        { a: legL, b: legR, len: 32, stiff: 0.07 }
+      ];
+
+      return { pieces, constraints, broken: false };
+    }
+
+    function addExplosion(x, y, power) {
+      for (let i = 0; i < 48; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = rand(2, power * 1.2);
+        sparks.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - rand(0.8, 3.8),
+          life: rand(18, 45),
+          size: rand(2, 7),
+          color: i % 2 ? "#ffd166" : "#ff7a59"
+        });
+      }
+
+      for (let i = 0; i < 14; i++) {
+        smoke.push({
+          x, y,
+          vx: rand(-1.2, 1.2),
+          vy: rand(-0.8, 0.2),
+          r: rand(18, 42),
+          alpha: 0.8,
+          life: rand(20, 60)
+        });
+      }
+    }
+
+    function hitCar(car, x, y, force) {
+      for (const p of car.pieces) {
+        const dx = p.x - x;
+        const dy = p.y - y;
+        const dist = Math.hypot(dx, dy) || 1;
+        if (dist < 260) {
+          const falloff = 1 - dist / 260;
+          p.vx += (dx / dist) * force * falloff * 0.95;
+          p.vy += (dy / dist) * force * falloff * 0.8;
+        }
+      }
+    }
+
+    function breakCar(car, x, y, power) {
+      for (const p of car.pieces) {
+        const dx = p.x - x;
+        const dy = p.y - y;
+        const dist = Math.hypot(dx, dy) || 1;
+        if (dist < 240) {
+          const falloff = 1 - dist / 240;
+          p.vx += (dx / dist) * power * falloff * 1.2;
+          p.vy += (dy / dist) * power * falloff * 1.0;
+        }
+      }
+
+      car.broken = true;
+      addExplosion(x, y, power + 10);
+    }
+
+    function updateCars() {
+      for (const car of cars) {
+        for (const p of car.pieces) {
+          p.vy += 0.22;
+          p.vx *= 0.995;
+          p.vy *= 0.995;
+
+          p.x += p.vx;
+          p.y += p.vy;
+
+          const floor = h - 22;
+          if (p.y + p.r > floor) {
+            p.y = floor - p.r;
+            p.vy *= -0.25;
+            p.vx *= 0.9;
+          }
+
+          if (p.x - p.r < 0) {
+            p.x = p.r;
+            p.vx *= -0.42;
+          }
+          if (p.x + p.r > w) {
+            p.x = w - p.r;
+            p.vx *= -0.42;
+          }
+        }
+
+        for (let i = 0; i < 4; i++) {
+          for (const c of car.constraints) {
+            const dx = c.b.x - c.a.x;
+            const dy = c.b.y - c.a.y;
+            const dist = Math.hypot(dx, dy) || 0.0001;
+            const diff = dist - c.len;
+            const nx = dx / dist;
+            const ny = dy / dist;
+
+            const force = diff * c.stiff;
+            const fx = nx * force;
+            const fy = ny * force;
+
+            c.a.x += fx;
+            c.a.y += fy;
+            c.b.x -= fx;
+            c.b.y -= fy;
+
+            c.a.vx += fx * 0.18;
+            c.a.vy += fy * 0.18;
+            c.b.vx -= fx * 0.18;
+            c.b.vy -= fy * 0.18;
+          }
+        }
+      }
+    }
+
+    function updateParticles() {
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.x += s.vx;
+        s.y += s.vy;
+        s.vy += 0.1;
+        s.life -= 1;
+        if (s.life <= 0) sparks.splice(i, 1);
+      }
+
+      for (let i = smoke.length - 1; i >= 0; i--) {
+        const s = smoke[i];
+        s.x += s.vx;
+        s.y += s.vy;
+        s.vy -= 0.01;
+        s.life -= 1;
+        s.alpha = clamp(s.life / 28, 0, 0.8);
+        if (s.life <= 0) smoke.splice(i, 1);
+      }
+    }
+
+    function drawGround() {
+      ctx.fillStyle = "#19311a";
+      ctx.fillRect(0, h - 22, w, 22);
+
+      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      for (let i = 0; i < w; i += 28) {
+        ctx.fillRect(i, h - 20, 18, 4);
+      }
+    }
+
+    function drawCars() {
+      for (const car of cars) {
+        ctx.lineWidth = 3;
+
+        for (const c of car.constraints) {
+          ctx.beginPath();
+          ctx.moveTo(c.a.x, c.a.y);
+          ctx.lineTo(c.b.x, c.b.y);
+          ctx.strokeStyle = "rgba(255,255,255,0.38)";
+          ctx.stroke();
+        }
+
+        for (const p of car.pieces) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,255,255,0.16)";
+          ctx.stroke();
+        }
+      }
+    }
+
+    function drawParticles() {
+      for (const s of sparks) {
+        ctx.fillStyle = s.color;
+        ctx.globalAlpha = clamp(s.life / 28, 0, 1);
+        ctx.fillRect(s.x, s.y, s.size, s.size);
+      }
+      ctx.globalAlpha = 1;
+
+      for (const s of smoke) {
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(255,255,255," + s.alpha + ")";
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function spawnCars() {
+      cars.push(makeCar(180, 120));
+      cars.push(makeCar(520, 140));
+      cars.push(makeCar(860, 110));
+    }
+
+    function smashAt(x, y) {
+      let nearest = null;
+      let nearestDist = Infinity;
+
+      for (const car of cars) {
+        for (const p of car.pieces) {
+          const dx = x - p.x;
+          const dy = y - p.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearest = { car, p };
+          }
+        }
+      }
+
+      if (!nearest) {
+        addExplosion(x, y, 16);
+        return;
+      }
+
+      const power = 26 + (120 - nearestDist) * 0.32;
+      breakCar(nearest.car, x, y, power);
+    }
+
+    function frame(ts) {
+      const dt = Math.min(32, ts - lastTime || 16);
+      lastTime = ts;
+
+      ctx.clearRect(0, 0, w, h);
+
+      drawGround();
+      updateCars();
+      updateParticles();
+      drawCars();
+      drawParticles();
+
+      if (cars.length < 3 && Math.random() < 0.008) {
+        cars.push(makeCar(rand(120, w - 120), rand(80, 170)));
+      }
+
+      requestAnimationFrame(frame);
+    }
+
+    canvas.addEventListener("pointerdown", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * (w / rect.width);
+      const y = (event.clientY - rect.top) * (h / rect.height);
+      smashAt(x, y);
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.code === "Space") {
+        for (let i = 0; i < 4; i++) {
+          const x = rand(80, w - 80);
+          const y = rand(40, h * 0.5);
+          addExplosion(x, y, 30);
+
+          for (const car of cars) {
+            for (const p of car.pieces) {
+              const dx = p.x - x;
+              const dy = p.y - y;
+              const dist = Math.hypot(dx, dy) || 1;
+              if (dist < 260) {
+                const falloff = 1 - dist / 260;
+                p.vx += (dx / dist) * 26 * falloff * 1.0;
+                p.vy += (dy / dist) * 26 * falloff * 0.9;
+              }
+            }
+          }
+        }
+      }
+    });
+
+    window.addEventListener("resize", resize);
+
+    resize();
+    spawnCars();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
