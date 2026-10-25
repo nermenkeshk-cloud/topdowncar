@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Geometry Dash Meltdown</title>
+  <style>
+    :root {
+      --bg1: #0a0f1d;
+      --bg2: #101b2d;
+      --panel: rgba(12, 18, 30, 0.8);
+      --accent: #ff5a5a;
+      --accent2: #ffb84d;
+      --neon: #52f7ff;
+      --green: #8cff7a;
+      --text: #edf7ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: linear-gradient(180deg, var(--bg1), var(--bg2));
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    #gameWrap {
+      position: relative;
+      width: min(95vw, 960px);
+      aspect-ratio: 16 / 9;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #09111d, #121d2e 45%, #1d2334 100%);
+      overflow: hidden;
+      border: 2px solid rgba(255,255,255,0.08);
+      box-shadow: 0 20px 44px rgba(0,0,0,0.45);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at top, rgba(82,247,255,0.12), transparent 38%),
+                  linear-gradient(180deg, #09111d 0%, #171f30 100%);
+      cursor: pointer;
+    }
+
+    .hud {
+      position: absolute;
+      top: 14px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      user-select: none;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    }
+
+    .title {
+      font-size: clamp(18px, 2vw, 28px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .score {
+      background: rgba(0,0,0,0.2);
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    .start-screen, .game-over {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background: rgba(4, 8, 16, 0.35);
+      backdrop-filter: blur(2px);
+    }
+
+    .panel {
+      background: rgba(17, 22, 36, 0.8);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 14px 32px rgba(0,0,0,0.28);
+      border-radius: 20px;
+      padding: 26px 30px;
+      min-width: min(80vw, 420px);
+    }
+
+    .panel h1 {
+      margin: 0 0 12px;
+      font-size: clamp(30px, 4vw, 56px);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--accent2);
+      text-shadow: 0 0 18px rgba(255,184,77,0.8);
+    }
+
+    .panel p {
+      margin: 8px 0;
+      font-size: clamp(14px, 1.8vw, 18px);
+      line-height: 1.45;
+    }
+
+    .cta {
+      margin-top: 16px;
+      border: none;
+      border-radius: 999px;
+      padding: 12px 22px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #fff;
+      background: linear-gradient(180deg, var(--accent2), var(--accent));
+      box-shadow: 0 8px 20px rgba(255, 90, 90, 0.45);
+      cursor: pointer;
+    }
+
+    @media (max-width: 560px) {
+      .hud {
+        left: 12px;
+        right: 12px;
+        top: 12px;
+      }
+      .title {
+        font-size: 15px;
+      }
+      .score {
+        font-size: 12px;
+        padding: 6px 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="gameWrap">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+    <div class="hud">
+      <div class="title">Geometry Dash</div>
+      <div class="score" id="score">0</div>
+    </div>
+
+    <div class="start-screen" id="startScreen">
+      <div class="panel">
+        <h1>Meltdown</h1>
+        <p>Press Space, tap, or click to jump.</p>
+        <p>Survive each obstacle and keep the run alive.</p>
+        <button class="cta" id="startBtn">Start</button>
+      </div>
+    </div>
+
+    <div class="game-over" id="gameOver" style="display:none;">
+      <div class="panel">
+        <h1>Crash!</h1>
+        <p id="finalScore">Score: 0</p>
+        <button class="cta" id="restartBtn">Retry</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const startScreen = document.getElementById("startScreen");
+    const gameOverScreen = document.getElementById("gameOver");
+    const scoreEl = document.getElementById("score");
+    const finalScoreEl = document.getElementById("finalScore");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    const groundY = canvas.height - 68;
+
+    const state = {
+      running: false,
+      started: false,
+      gameOver: false,
+      score: 0,
+      speed: 360,
+      spawnTimer: 1.2,
+      time: 0
+    };
+
+    const player = {
+      x: 150,
+      y: groundY - 42,
+      w: 30,
+      h: 42,
+      vy: 0,
+      gravity: 1800,
+      jumpForce: 650,
+      onGround: true
+    };
+
+    let obstacles = [];
+    let particles = [];
+
+    function resetGame() {
+      state.running = false;
+      state.started = false;
+      state.gameOver = false;
+      state.score = 0;
+      state.speed = 360;
+      state.spawnTimer = 1.2;
+      state.time = 0;
+
+      player.x = 150;
+      player.y = groundY - player.h;
+      player.vy = 0;
+      player.onGround = true;
+
+      obstacles = [];
+      particles = [];
+
+      scoreEl.textContent = "0";
+      gameOverScreen.style.display = "none";
+      startScreen.style.display = "flex";
+    }
+
+    function startGame() {
+      state.running = true;
+      state.started = true;
+      state.gameOver = false;
+      state.score = 0;
+      state.speed = 360;
+      state.spawnTimer = 1.1;
+      state.time = 0;
+
+      player.x = 150;
+      player.y = groundY - player.h;
+      player.vy = 0;
+      player.onGround = true;
+
+      obstacles = [];
+      particles = [];
+      scoreEl.textContent = "0";
+
+      startScreen.style.display = "none";
+      gameOverScreen.style.display = "none";
+    }
+
+    function addParticles(x, y, color, count = 16) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 220,
+          vy: (Math.random() - 0.5) * 220,
+          size: 3 + Math.random() * 4,
+          life: 0.6 + Math.random() * 0.7,
+          color
+        });
+      }
+    }
+
+    function addObstacle() {
+      const isLong = Math.random() > 0.6;
+      const height = isLong ? 50 + Math.random() * 55 : 35 + Math.random() * 30;
+      obstacles.push({
+        x: canvas.width + 20,
+        y: groundY - height,
+        w: isLong ? 28 + Math.random() * 22 : 18 + Math.random() * 18,
+        h: height,
+        color: Math.random() > 0.5 ? "#ff5a5a" : "#ffb84d"
+      });
+    }
+
+    function jump() {
+      if (!state.started) {
+        startGame();
+        return;
+      }
+
+      if (!state.running) return;
+
+      if (player.onGround) {
+        player.vy = -player.jumpForce;
+        player.onGround = false;
+      }
+    }
+
+    function gameOver() {
+      state.running = false;
+      state.gameOver = true;
+      finalScoreEl.textContent = "Score: " + Math.floor(state.score);
+      gameOverScreen.style.display = "flex";
+    }
+
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 240 * dt;
+        p.life -= dt;
+
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    function update(dt) {
+      if (!state.running) {
+        updateParticles(dt);
+        return;
+      }
+
+      state.time += dt;
+      state.score += dt * 12.5;
+      state.speed += dt * 1.25;
+
+      state.spawnTimer -= dt;
+      if (state.spawnTimer <= 0) {
+        addObstacle();
+        state.spawnTimer = Math.max(0.7, 1.35 - state.score / 250);
+      }
+
+      player.vy += player.gravity * dt;
+      player.y += player.vy * dt;
+
+      const floorY = groundY - player.h;
+      if (player.y >= floorY) {
+        player.y = floorY;
+        player.vy = 0;
+        player.onGround = true;
+      }
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        o.x -= state.speed * dt;
+
+        const hit =
+          player.x + player.w > o.x &&
+          player.x < o.x + o.w &&
+          player.y + player.h > o.y &&
+          player.y < o.y + o.h;
+
+        if (hit) {
+          addParticles(player.x + player.w / 2, player.y + player.h / 2, "#ff5a5a", 24);
+          gameOver();
+          return;
+        }
+
+        if (o.x + o.w < -20) {
+          obstacles.splice(i, 1);
+        }
+      }
+
+      scoreEl.textContent = Math.floor(state.score).toString();
+      updateParticles(dt);
+    }
+
+    function drawBackground() {
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      grad.addColorStop(0, "#08111d");
+      grad.addColorStop(0.45, "#101b2d");
+      grad.addColorStop(1, "#1d2536");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // stars
+      for (let i = 0; i < 22; i++) {
+        const x = (i * 173 + (state.time * 18) % 1200) % (canvas.width + 100);
+        const y = 32 + ((i * 61) % 160);
+        ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.75)" : "rgba(82,247,255,0.5)";
+        ctx.beginPath();
+        ctx.arc(x, y, i % 3 === 0 ? 2.3 : 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // skyline
+      for (let i = 0; i < 12; i++) {
+        const x = i * 110 + ((state.time * 12) % 120);
+        const h = 70 + (i % 5) * 26;
+        ctx.fillStyle = "rgba(18, 27, 45, 0.8)";
+        ctx.fillRect(x - 200, groundY - h, 52, h);
+        ctx.fillRect(x - 140, groundY - h - 18, 70, h + 18);
+      }
+    }
+
+    function drawGround() {
+      ctx.fillStyle = "#111827";
+      ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+      const scroll = (state.time * state.speed * 0.2) % 42;
+      for (let x = -42; x < canvas.width + 42; x += 42) {
+        ctx.fillStyle = (x + scroll) % 84 === 0 ? "#2e384b" : "#1a2234";
+        ctx.fillRect(x - scroll, groundY + 18, 26, 10);
+      }
+
+      ctx.strokeStyle = "#52f7ff";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, groundY + 2);
+      ctx.lineTo(canvas.width, groundY + 2);
+      ctx.stroke();
+    }
+
+    function drawPlayer() {
+      const x = player.x;
+      const y = player.y;
+
+      // shadow
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.beginPath();
+      ctx.ellipse(x + player.w / 2, groundY + 18, 22, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // cube
+      ctx.fillStyle = "#52f7ff";
+      ctx.fillRect(x, y, player.w, player.h);
+
+      // inner face
+      ctx.fillStyle = "#dffcff";
+      ctx.fillRect(x + 6, y + 6, player.w - 12, player.h - 12);
+
+      // eye / face
+      ctx.fillStyle = "#1a2234";
+      ctx.fillRect(x + 7, y + 11, 6, 6);
+      ctx.fillRect(x + player.w - 13, y + 11, 6, 6);
+
+      // mouth
+      ctx.fillStyle = "#ff5a5a";
+      ctx.fillRect(x + 9, y + player.h - 13, player.w - 18, 4);
+    }
+
+    function drawObstacle(o) {
+      ctx.fillStyle = o.color;
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+
+      ctx.fillStyle = "rgba(255,255,255,0.15)";
+      ctx.fillRect(o.x + 4, o.y + 4, o.w - 8, 8);
+    }
+
+    function drawParticles() {
+      for (const p of particles) {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(p.life, 0);
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function draw() {
+      drawBackground();
+      drawGround();
+
+      for (const o of obstacles) drawObstacle(o);
+
+      drawPlayer();
+      drawParticles();
+    }
+
+    let lastTime = 0;
+    function loop(ts) {
+      const dt = Math.min(0.032, (ts - lastTime) / 1000 || 0.016);
+      lastTime = ts;
+
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
+        e.preventDefault();
+        jump();
+      }
+      if ((e.code === "KeyR" || e.code === "Enter") && state.gameOver) {
+        startGame();
+      }
+    });
+
+    canvas.addEventListener("pointerdown", jump);
+    startBtn.addEventListener("click", startGame);
+    restartBtn.addEventListener("click", startGame);
+
+    resetGame();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>7
